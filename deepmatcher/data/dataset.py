@@ -142,27 +142,10 @@ class MatchingDataset(data.Dataset):
                 Default is None. This is a keyword-only parameter.
         """
         if examples is None:
-            make_example = {
-                'json': Example.fromJSON, 'dict': Example.fromdict,
-                'tsv': Example.fromCSV, 'csv': Example.fromCSV}[format.lower()]
-
-            lines = 0
-            with open(os.path.expanduser(path), encoding="utf8") as f:
-                for line in f:
-                    lines += 1
-
-            with open(os.path.expanduser(path), encoding="utf8") as f:
-                if format == 'csv':
-                    reader = unicode_csv_reader(f)
-                elif format == 'tsv':
-                    reader = unicode_csv_reader(f, delimiter='\t')
-                else:
-                    reader = f
-
-                next(reader)
-                examples = [make_example(line, fields) for line in
-                    pyprind.prog_bar(reader, iterations=lines,
-                        title='\nReading and processing data from "' + path + '"')]
+            if isinstance(path, pd.DataFrame):
+                examples = MatchingDataset._get_examples_from_df(path, fields)
+            else:
+                examples = MatchingDataset._get_examples_from_path(path, fields, format)
 
             super(MatchingDataset, self).__init__(examples, fields, **kwargs)
         else:
@@ -481,6 +464,40 @@ class MatchingDataset(data.Dataset):
                 field.vocab = cached_data['vocabs'][name]
 
         return datasets
+
+    @staticmethod
+    def _get_examples_from_df(df, fields):
+        lines = len(df)
+        examples = [Example.fromlist(line.astype(str), fields) for line in 
+                    pyprind.prog_bar(df.values, iterations=lines,
+                                    title='\nReading and processing data from dataframe')]
+        return examples
+
+    @staticmethod
+    def _get_examples_from_path(path, fields, format):
+        make_example = {
+        'json': Example.fromJSON, 'dict': Example.fromdict,
+        'tsv': Example.fromCSV, 'csv': Example.fromCSV}[format.lower()]
+
+
+        lines = 0
+        with open(os.path.expanduser(path), encoding="utf8") as f:
+            for line in f:
+                lines += 1
+
+        with open(os.path.expanduser(path), encoding="utf8") as f:
+            if format == 'csv':
+                reader = unicode_csv_reader(f)
+            elif format == 'tsv':
+                reader = unicode_csv_reader(f, delimiter='\t')
+            else:
+                reader = f
+
+            next(reader)
+            examples = [make_example(line, fields) for line in
+                pyprind.prog_bar(reader, iterations=lines,
+                    title='\nReading and processing data from "' + path + '"')]
+            return examples
 
     @classmethod
     def splits(cls,
